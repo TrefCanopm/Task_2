@@ -50,7 +50,7 @@ namespace Task_2
 
                 if(isStart)
                 {
-                    WorkFile.ChekFile(LoadFile.Text, SaveFile.Text);
+                    WorkFile.CheckFile(LoadFile.Text, SaveFile.Text);
                     Message.MessageNotification("Опись произведена");
                 }
             }

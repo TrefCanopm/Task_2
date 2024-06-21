@@ -8,14 +8,17 @@ using System.Threading.Tasks;
 using System.IO;
 using System.Windows.Forms;
 using Microsoft.Office.Interop.Word;
+using System.Reflection;
 
 namespace Task_2
 {
     internal class WorkFile
     {
-        public static void ChekFile(string fileLoad, string fileSave)
+        public static void CheckFile(string loadFile, string saveFile)
         {
-            if (!File.Exists(fileLoad + "\\Опись.docx"))
+            string nameFile = "\\Опись.docx";
+
+            if (!File.Exists(loadFile + nameFile))
             {
                 Message.MessageError("В указанной папке не существует файла Опись");
                 return;
@@ -24,42 +27,70 @@ namespace Task_2
             int number = 0;
             int count = 0;
 
-            Dictionary<string, bool> files = new Dictionary<string, bool>();
+            Dictionary<string, bool> listFiles = new Dictionary<string, bool>();
 
-            string str1 = "";
-
-            string[] mas = System.IO.Directory.GetFileSystemEntries(fileLoad);
+            string[] mas = System.IO.Directory.GetFileSystemEntries(loadFile);
 
             foreach (string str in mas) 
             {
-                files.Add(str.Replace(fileLoad + "\\", ""), false);
+                listFiles.Add(str.Replace(loadFile + "\\", ""), false);
             }
 
+            File.Copy(loadFile + nameFile, saveFile + nameFile);
+
             var word = new Microsoft.Office.Interop.Word.Application();
-            var doc = word.Documents.Open(fileLoad + "\\Опись.docx");
+            var doc = word.Documents.Open(saveFile + nameFile);
 
-            var table = doc.Tables[0];
+            var table = doc.Tables[1];
 
-            for(int i = 0; i < table.Rows.Count; i++)
+            string missingFiles = "";
+
+            for (int i = 2; i <= table.Rows.Count; i++)
             {
-                var row = table.Rows[i];
+                string files = table.Rows[i].Cells[2].Range.Text;
 
-                if (files.ContainsKey(row.Cells[1].Range.Text))
+                if(listFiles.ContainsKey(files)) 
                 {
-                    str1 += row.Cells[1].Range.Text;
+                    InventoryDirectory(loadFile, saveFile, files, ref number, ref count);
+                }
+                else
+                {
+                    if (listFiles.ContainsKey(files + ".pdf"))
+                    {
+                        InventoryFile(loadFile, saveFile, files, ref number, ref count);
+                    }
+                    else
+                    {
+                        missingFiles += files + "\n";
+                    }
                 }
             }
 
+            ChekMissingFiles(saveFile, missingFiles);
+            ExtraFiles(loadFile, saveFile, listFiles);
+
+            doc.Close();
+            word.Quit();
         }
 
-        private static void InventoryDirectory(string fileLoad, string fileSave, string nameDirectory, ref int number, ref int count)
+        private static void InventoryDirectory(string loadFile, string saveFile, string nameDirectory, ref int number, ref int count)
         {
             string name = (number+1).ToString();
 
-            string[] mas = System.IO.Directory.GetFileSystemEntries(fileLoad);
+            string[] mas = System.IO.Directory.GetFileSystemEntries(loadFile);
         }
 
-        private static void InventoryFile(string fileLoad, string fileSave, ref int number, ref int count)
+        private static void InventoryFile(string loadFile, string saveFile, string nameFile, ref int number, ref int count)
+        {
+
+        }
+
+        private static void ChekMissingFiles(string saveFiles, string missingFiles)
+        {
+
+        }
+
+        private static void ExtraFiles(string loadFile, string saveFile, Dictionary<string, bool> listFile)
         {
 
         }
