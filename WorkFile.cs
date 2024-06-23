@@ -62,12 +62,14 @@ namespace Task_2
                 if(listFiles.ContainsKey(files)) 
                 {
                     InventoryDirectory(loadFile, saveFile, files, ref number, ref count);
+                    listFiles[files] = true;
                 }
                 else
                 {
                     if (listFiles.ContainsKey(files + ".pdf"))
                     {
                         InventoryFile(loadFile, saveFile, files, ref number, ref count);
+                        listFiles[files] = true;
                     }
                     else
                     {
@@ -100,11 +102,13 @@ namespace Task_2
 
             //Учет лишних и отсутствующих документов
             CheckMissingFiles(saveFile, missingFiles);
-            ExtraFiles(loadFile, saveFile, listFiles);
+            ExtraElement(loadFile, saveFile, listFiles);
 
             doc.Close();
             word.Quit();
         }
+
+
 
         //Рекурсивный метод для чтения каталогов
         private static void InventoryDirectory(string loadFile, string saveFile, string nameDirectory, ref int number, ref int count)
@@ -152,9 +156,57 @@ namespace Task_2
         }
 
         //Сохранения лишних файлов или файлов с неправильным названием
-        private static void ExtraFiles(string loadFile, string saveFile, Dictionary<string, bool> listFile)
+        private static void ExtraElement(string loadFile, string saveFile, Dictionary<string, bool> listFiles)
+        {
+            saveFile += "\\" + "Неопределенные";
+
+            Directory.CreateDirectory(saveFile);
+
+            foreach (string str in listFiles.Keys)
+            {
+                if (!listFiles[str]) 
+                {
+                    if(Directory.Exists(loadFile +"\\"+str))
+                    {
+                        ExtraDirectory(loadFile, saveFile, str);
+                    }
+                    else
+                    {
+                        if (listFiles.ContainsKey(str))
+                        {
+                            ExtraFile(loadFile, saveFile, str);
+                        }
+                    }
+                }
+            }
+        }
+
+        private static void ExtraDirectory(string loadFile, string saveFile, string nameDirectory)
         {
 
+            string[] mas = System.IO.Directory.GetFileSystemEntries(loadFile + "\\" + nameDirectory);
+
+            Directory.CreateDirectory(saveFile + "\\" + nameDirectory);
+
+            for (int i = 0; i < mas.Length; i++)
+            {
+                if (File.Exists(mas[i]))
+                {
+                    ExtraFile(loadFile + "\\" + nameDirectory, saveFile + "\\" + nameDirectory, mas[i].Replace(saveFile + "\\", ""));
+                }
+                else
+                {
+                    ExtraDirectory(loadFile + "\\" + nameDirectory, saveFile + "\\" + nameDirectory, mas[i].Replace(saveFile + "\\", ""));
+                }
+            }
+
+            Directory.Move(saveFile + "\\" + nameDirectory, saveFile + "\\" + nameDirectory);
+        }
+
+        private static void ExtraFile(string loadFile, string saveFile, string nameFile)
+        {
+            //Копирование pdf файла из изначальной папки в конечную
+            File.Copy(loadFile + "\\" + nameFile + ".pdf", saveFile + "\\" + nameFile + ".pdf");
         }
     }
 }
