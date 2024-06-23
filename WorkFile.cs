@@ -36,7 +36,8 @@ namespace Task_2
             //Фиксирования какие файлы и каталоги находятся в изначальном каталоге
             foreach (string str in mas) 
             {
-                listFiles.Add(str.Replace(loadFile + "\\", ""), false);
+                if (str.Contains(".pdf") || str.Contains(".PDF")|| Directory.Exists(str))
+                    listFiles.Add(str.Replace(loadFile + "\\", ""), false);
             }
 
             //Перенос файла Опись в конечную папку
@@ -69,7 +70,7 @@ namespace Task_2
                     if (listFiles.ContainsKey(files + ".pdf"))
                     {
                         InventoryFile(loadFile, saveFile, files, ref number, ref count);
-                        listFiles[files] = true;
+                        listFiles[files + ".pdf"] = true;
                     }
                     else
                     {
@@ -142,11 +143,12 @@ namespace Task_2
             number++;
 
             //Копирование pdf файла из изначальной папки в конечную
-            File.Copy(loadFile + "\\" + nameFile + ".pdf", saveFile + "\\" + number.ToString() +". "+ nameFile + ".pdf");
+            File.Copy(loadFile + "\\" + nameFile + ".pdf", saveFile + "\\" + number.ToString() +". "+ nameFile + ".pdf", true);
 
             //Получения количества страниц в pdf файле
             PdfReader pdf = new PdfReader(saveFile + "\\" + number.ToString() + ". " + nameFile + ".pdf");
             count += pdf.NumberOfPages;
+            pdf.Close();
         }
 
         //Сохранение записи о не хватающих файлов
@@ -206,7 +208,7 @@ namespace Task_2
         private static void ExtraFile(string loadFile, string saveFile, string nameFile)
         {
             //Копирование pdf файла из изначальной папки в конечную
-            File.Copy(loadFile + "\\" + nameFile + ".pdf", saveFile + "\\" + nameFile + ".pdf");
+            File.Copy(loadFile + "\\" + nameFile, saveFile + "\\" + nameFile, true);
         }
     }
 }
