@@ -1,15 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.NetworkInformation;
-using System.Security;
-using System.Text;
-using System.Threading.Tasks;
-using System.IO;
-using System.Windows.Forms;
+﻿using iTextSharp.text.pdf;
 using Microsoft.Office.Interop.Word;
-using System.Reflection;
-using iTextSharp.text.pdf;
 
 namespace Task_2
 {
@@ -29,8 +19,8 @@ namespace Task_2
             int number = 0;
             int count = 0;
 
-            Microsoft.Office.Interop.Word.Application word = null;
-            Document doc = null;
+            Microsoft.Office.Interop.Word.Application app = null;
+            Document word = null;
 
             Dictionary<string, bool> listFiles = new Dictionary<string, bool>();
 
@@ -49,10 +39,10 @@ namespace Task_2
                 File.Copy(loadFile + nameFile, saveFile + nameFile, true);
 
                 //Открытие файла Опись
-                word = new Microsoft.Office.Interop.Word.Application();
-                doc = word.Documents.Open(saveFile + nameFile);
+                app = new Microsoft.Office.Interop.Word.Application();
+                word = app.Documents.Open(saveFile + nameFile);
 
-                var table = doc.Tables[1];
+                var table = word.Tables[1];
 
                 List<string> missingFiles = new List<string>();
 
@@ -110,33 +100,33 @@ namespace Task_2
                 }
 
                 //Указание даты формирования отчета в верхний колонтикул
-                foreach (Section section in doc.Sections)
+                foreach (Section section in word.Sections)
                 {
                     var headers = section.Headers[WdHeaderFooterIndex.wdHeaderFooterPrimary].Range;
                     headers.Text = "Дата создания отчета " + DateTime.Now.ToString("dd.mm.yy");
                 }
 
                 //Строка сводки по документам
-                doc.Words.Last.InsertBefore(" Документов " + number + "\n Количество листов " + count + "\n");
+                word.Words.Last.InsertBefore(" Документов " + number + "\n Количество листов " + count + "\n");
 
 
 
                 //Учет лишних и отсутствующих документов
-                CheckMissingFiles(saveFile, missingFiles, doc);
-                ExtraElement(loadFile, saveFile, listFiles, doc);
+                CheckMissingFiles(saveFile, missingFiles, word);
+                ExtraElement(loadFile, saveFile, listFiles, app, word);
 
-                doc.Close();
-                word.Quit();
+                word.Close();
+                app.Quit();
 
                 Message.MessageNotification("Опись произведена");
             }
             catch (Exception ex)
             {
                 Message.MessageError(ex.ToString());
-                if (doc != null)
-                    doc.Close();
                 if (word != null)
-                    word.Quit();
+                    word.Close();
+                if (app != null)
+                    app.Quit();
             }
         }
 
@@ -188,7 +178,7 @@ namespace Task_2
             int i = 1;
 
             doc.Words.Last.InsertBefore("Не найденные файлы:" + "\n");
-            foreach (string str in missingFiles) 
+            foreach (string str in missingFiles)
             {
                 doc.Words.Last.InsertBefore(i + ") " + str + "\n");
                 i++;
@@ -196,19 +186,35 @@ namespace Task_2
         }
 
         //Сохранения лишних файлов или файлов с неправильным названием
-        private static void ExtraElement(string loadFile, string saveFile, Dictionary<string, bool> listFiles, Document doc)
+        private static void ExtraElement(string loadFile, string saveFile, Dictionary<string, bool> listFiles, Microsoft.Office.Interop.Word.Application app, Document word)
         {
             saveFile += "\\" + "Неопределенные";
-
             Directory.CreateDirectory(saveFile);
+
+            word.Words.Last.InsertBefore("\nНеопределенные файлы:\n");
+
+            object number = 1;
+            ListTemplate template = app.ListGalleries[WdListGalleryType.wdNumberGallery].ListTemplates.get_Item(ref number);
+
+            Paragraph paragraph = null;
+            var range = word.Range();
+
+            int listLevel = 1;
 
             foreach (string str in listFiles.Keys)
             {
                 if (!listFiles[str])
                 {
+                    paragraph = range.Paragraphs.Add();
+                    paragraph.Range.Text = str.Replace(".pdf", "").Replace("PDF", "");
+
+                    paragraph.Range.SetListLevel((short)listLevel);
+                    paragraph.Range.ListFormat.ApplyListTemplateWithLevel(template, ContinuePreviousList: true, DefaultListBehavior: WdDefaultListBehavior.wdWord10ListBehavior, ApplyLevel: 1);
+                    paragraph.Range.InsertParagraphAfter();
+
                     if (Directory.Exists(loadFile + "\\" + str))
                     {
-                        ExtraDirectory(loadFile, saveFile, str);
+                        ExtraDirectory(loadFile, saveFile, str, paragraph, range, template, listLevel + 1);
                     }
                     else
                     {
@@ -221,7 +227,7 @@ namespace Task_2
             }
         }
 
-        private static void ExtraDirectory(string loadFile, string saveFile, string nameDirectory)
+        private static void ExtraDirectory(string loadFile, string saveFile, string nameDirectory, Paragraph paragraph, Microsoft.Office.Interop.Word.Range range, ListTemplate template, int listLevel)
         {
 
             string[] mas = System.IO.Directory.GetFileSystemEntries(loadFile + "\\" + nameDirectory);
@@ -230,17 +236,22 @@ namespace Task_2
 
             for (int i = 0; i < mas.Length; i++)
             {
+                paragraph = range.Paragraphs.Add();
+                paragraph.Range.Text = mas[i].Replace(loadFile + "\\" + nameDirectory + "\\", "").Replace(".pdf", "").Replace("PDF", "");
+
+                paragraph.Range.SetListLevel((short)listLevel);
+                paragraph.Range.ListFormat.ApplyListTemplateWithLevel(template, ContinuePreviousList: true, ApplyLevel: 1);
+                paragraph.Range.InsertParagraphAfter();
+
                 if (File.Exists(mas[i]))
                 {
                     ExtraFile(loadFile + "\\" + nameDirectory, saveFile + "\\" + nameDirectory, mas[i].Replace(loadFile + "\\" + nameDirectory + "\\", ""));
                 }
                 else
                 {
-                    ExtraDirectory(loadFile + "\\" + nameDirectory, saveFile + "\\" + nameDirectory, mas[i].Replace(loadFile + "\\" + nameDirectory + "\\", ""));
+                    ExtraDirectory(loadFile + "\\" + nameDirectory, saveFile + "\\" + nameDirectory, mas[i].Replace(loadFile + "\\" + nameDirectory + "\\", ""), paragraph, range, template, listLevel + 1);
                 }
             }
-
-            Directory.Move(saveFile + "\\" + nameDirectory, saveFile + "\\" + nameDirectory);
         }
 
         private static void ExtraFile(string loadFile, string saveFile, string nameFile)

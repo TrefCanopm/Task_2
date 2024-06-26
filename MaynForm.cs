@@ -1,6 +1,3 @@
-using System.Windows.Forms;
-using System.IO;
-
 namespace Task_2
 {
     public partial class MaynForm : Form
@@ -30,7 +27,7 @@ namespace Task_2
 
         private void Start_Click(object sender, EventArgs e)
         {
-            if(LoadFile.Text == "" || SaveFile.Text == "")
+            if (LoadFile.Text == "" || SaveFile.Text == "")
             {
                 Message.MessageError("Заполните поля");
             }
@@ -42,13 +39,13 @@ namespace Task_2
                     isStart = false;
                 }
 
-                if(!Directory.Exists(SaveFile.Text))
+                if (!Directory.Exists(SaveFile.Text))
                 {
                     Message.MessageError("Не удалось найти папку для сохранения Описи");
                     isStart = false;
                 }
 
-                if(isStart)
+                if (isStart)
                 {
                     WorkFile.CheckFile(LoadFile.Text, SaveFile.Text);
                 }
