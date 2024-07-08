@@ -1,5 +1,6 @@
 ﻿using iTextSharp.text.pdf;
 using Microsoft.Office.Interop.Word;
+using System.Globalization;
 
 namespace Task_2
 {
@@ -24,27 +25,56 @@ namespace Task_2
 
             Dictionary<string, bool> listFiles = new Dictionary<string, bool>();
 
-            string[] mas = System.IO.Directory.GetFileSystemEntries(loadFile);
-
-            //Фиксирования какие файлы и каталоги находятся в изначальном каталоге
-            foreach (string str in mas)
+            try
+            { 
+            try
             {
-                if (str.Contains(".pdf") || str.Contains(".PDF") || Directory.Exists(str))
-                    listFiles.Add(str.Replace(loadFile + "\\", ""), false);
+                string[] mas = System.IO.Directory.GetFileSystemEntries(loadFile);
+
+                //Фиксирования какие файлы и каталоги находятся в изначальном каталоге
+                foreach (string str in mas)
+                {
+                    if (str.Contains(".pdf") || str.Contains(".PDF") || Directory.Exists(str))
+                        listFiles.Add(str.Replace(loadFile + "\\", ""), false);
+                }
+            }
+            catch (Exception e)
+            {
+                Message.MessageError("Ошибка чтения файлов из изначальной папки");
             }
 
             try
             {
                 //Перенос файла Опись в конечную папку
                 File.Copy(loadFile + nameFile, saveFile + nameFile, true);
+            }
+            catch
+            {
+                Message.MessageError("Ошибка копирования файла Опись");
+            }
 
-                //Открытие файла Опись
+            //Открытие файла Опись
+
+            try
+            {
                 app = new Microsoft.Office.Interop.Word.Application();
                 word = app.Documents.Open(saveFile + nameFile);
+            }
+            catch
+            {
+                Message.MessageError("Ошибка открытия с копированного файла");
+                if (word != null)
+                   word.Close();
+               if (app != null)
+                    app.Quit();
+            }
 
+            List<string> missingFiles = new List<string>();
+            try
+            {
                 var table = word.Tables[1];
 
-                List<string> missingFiles = new List<string>();
+                missingFiles = new List<string>();
 
                 //Чтение таблицы из файла Опись
                 for (int i = 3; i <= table.Rows.Count; i++)
@@ -55,14 +85,15 @@ namespace Task_2
                     int oldCount = count;
 
                     //Проверка на наличие документа или каталога из файла Опись в начальной папке
-                    if (listFiles.ContainsKey(files))
-                    {
-                        table.Rows[i].Cells[2].Range.Font.Color = (WdColor)ColorTranslator.ToOle(Color.Green);
-                        InventoryDirectory(loadFile, saveFile, files, ref number, ref count);
-                        listFiles[files] = true;
-                    }
-                    else
-                    {
+                  
+                        if (listFiles.ContainsKey(files))
+                        {
+                            table.Rows[i].Cells[2].Range.Font.Color = (WdColor)ColorTranslator.ToOle(Color.Green);
+                            InventoryDirectory(loadFile, saveFile, files, ref number, ref count);
+                            listFiles[files] = true;
+                        }
+                        else
+                        {
                         if (listFiles.ContainsKey(files + ".pdf"))
                         {
                             table.Rows[i].Cells[2].Range.Font.Color = (WdColor)ColorTranslator.ToOle(Color.Green);
@@ -71,11 +102,20 @@ namespace Task_2
                         }
                         else
                         {
-                            table.Rows[i].Cells[2].Range.Font.Color = (WdColor)ColorTranslator.ToOle(Color.Red);
-                            missingFiles.Add(files);
+                            if (listFiles.ContainsKey(files + ".PDF"))
+                            {
+                                table.Rows[i].Cells[2].Range.Font.Color = (WdColor)ColorTranslator.ToOle(Color.Green);
+                                InventoryFile(loadFile, saveFile, files + ".PDF", ref number, ref count);
+                                listFiles[files + ".PDF"] = true;
+                            }
+                            else
+                            {
+                                table.Rows[i].Cells[2].Range.Font.Color = (WdColor)ColorTranslator.ToOle(Color.Red);
+                                missingFiles.Add(files);
+                            }
                         }
-                    }
 
+                    }
                     //Фиксация номера обработанного документа или каталогов и количество его страниц
                     if (oldNumber != number)
                     {
@@ -98,27 +138,39 @@ namespace Task_2
                         }
                     }
                 }
+            }
+            catch(Exception e)
+            {
 
-                //Указание даты формирования отчета в верхний колонтикул
+                Message.MessageError("Не отслеживаемая ошибка"+"\n"+e.ToString());
+            }
+            //Указание даты формирования отчета в верхний колонтикул
+
+            try
+            {
                 foreach (Section section in word.Sections)
                 {
                     var headers = section.Headers[WdHeaderFooterIndex.wdHeaderFooterPrimary].Range;
-                    headers.Text = "Дата создания отчета " + DateTime.Now.ToString("dd.mm.yy");
+                    headers.Text = "Дата создания отчета " + DateTime.Now.ToString("d", CultureInfo.CreateSpecificCulture("de-DE"));
                 }
+            }
+            catch
+            {
+                Message.MessageError("Ошибка указания даты в файл Опись");
+            }
+            //Строка сводки по документам
+            word.Words.Last.InsertBefore(" Документов " + number + "\n Количество листов " + count + "\n");
 
-                //Строка сводки по документам
-                word.Words.Last.InsertBefore(" Документов " + number + "\n Количество листов " + count + "\n");
 
 
+            //Учет лишних и отсутствующих документов
+            CheckMissingFiles(saveFile, missingFiles, word);
+            ExtraElement(loadFile, saveFile, listFiles, app, word);
 
-                //Учет лишних и отсутствующих документов
-                CheckMissingFiles(saveFile, missingFiles, word);
-                ExtraElement(loadFile, saveFile, listFiles, app, word);
+            word.Close();
+            app.Quit();
 
-                word.Close();
-                app.Quit();
-
-                Message.MessageNotification("Опись произведена");
+            Message.MessageNotification("Опись произведена");
             }
             catch (Exception ex)
             {
@@ -136,10 +188,24 @@ namespace Task_2
         private static void InventoryDirectory(string loadFile, string saveFile, string nameDirectory, ref int number, ref int count)
         {
             string name = (number + 1).ToString();
+            string[] mas = new string[0];
+            try
+            {
+                mas = System.IO.Directory.GetFileSystemEntries(loadFile + "\\" + nameDirectory);
+            }
+            catch
+            {
+                Message.MessageError("Ошибка чтения каталогов из основной папки");
+            }
 
-            string[] mas = System.IO.Directory.GetFileSystemEntries(loadFile + "\\" + nameDirectory);
-
-            Directory.CreateDirectory(saveFile + "\\" + nameDirectory);
+            try
+            {
+                Directory.CreateDirectory(saveFile + "\\" + nameDirectory);
+            }
+            catch
+            {
+                Message.MessageError("Ошибка создания каталога");
+            }
 
             for (int i = 0; i < mas.Length; i++)
             {
@@ -155,7 +221,14 @@ namespace Task_2
 
             name += "-" + (number).ToString() + ". ";
 
-            Directory.Move(saveFile + "\\" + nameDirectory, saveFile + "\\" + name + nameDirectory);
+            try
+            {
+                Directory.Move(saveFile + "\\" + nameDirectory, saveFile + "\\" + name + nameDirectory);
+            }
+            catch
+            {
+                Message.MessageError("Ошибка изменения названия необходимых скопированных каталогов");
+            }
         }
 
         //Фиксация файла pdf
@@ -164,12 +237,28 @@ namespace Task_2
             number++;
 
             //Копирование pdf файла из изначальной папки в конечную
-            File.Copy(loadFile + "\\" + nameFile, saveFile + "\\" + number.ToString() + ". " + nameFile, true);
+            try
+            {
+                File.Copy(loadFile + "\\" + nameFile, saveFile + "\\" + number.ToString() + ". " + nameFile, true);
+            }
+            catch
+            {
+                Message.MessageError("Ошибка копирования элементов необходимых файлов");
+            }
 
             //Получения количества страниц в pdf файле
-            PdfReader pdf = new PdfReader(saveFile + "\\" + number.ToString() + ". " + nameFile);
-            count += pdf.NumberOfPages;
-            pdf.Close();
+
+            try
+            {
+                PdfReader pdf = new PdfReader(saveFile + "\\" + number.ToString() + ". " + nameFile);
+                count += pdf.NumberOfPages;
+                pdf.Close();
+            }
+            catch
+            {
+                Message.MessageError("Ошибка чтения количества страниц из pdf файла");
+            }
+
         }
 
         //Сохранение записи о не хватающих файлов
@@ -177,19 +266,33 @@ namespace Task_2
         {
             int i = 1;
 
-            doc.Words.Last.InsertBefore("Не найденные файлы:" + "\n");
-            foreach (string str in missingFiles)
+            try
             {
-                doc.Words.Last.InsertBefore(i + ") " + str + "\n");
-                i++;
+                doc.Words.Last.InsertBefore("Не найденные файлы:" + "\n");
+                foreach (string str in missingFiles)
+                {
+                    doc.Words.Last.InsertBefore(i + ") " + str + "\n");
+                    i++;
+                }
+            }
+            catch
+            {
+                Message.MessageError("Ошибка фиксации не найденных файлов в документ Опись");
             }
         }
 
         //Сохранения лишних файлов или файлов с неправильным названием
         private static void ExtraElement(string loadFile, string saveFile, Dictionary<string, bool> listFiles, Microsoft.Office.Interop.Word.Application app, Document word)
         {
-            saveFile += "\\" + "Неопределенные";
-            Directory.CreateDirectory(saveFile);
+            try
+            {
+                saveFile += "\\" + "Неопределенные";
+                Directory.CreateDirectory(saveFile);
+            }
+            catch
+            {
+                Message.MessageError("Ошибка создания каталога с неопределенными файлами");
+            }
 
             word.Words.Last.InsertBefore("\nНеопределенные файлы:\n");
 
@@ -229,10 +332,25 @@ namespace Task_2
 
         private static void ExtraDirectory(string loadFile, string saveFile, string nameDirectory, Paragraph paragraph, Microsoft.Office.Interop.Word.Range range, ListTemplate template, int listLevel)
         {
+            string[] mas = new string[0];
 
-            string[] mas = System.IO.Directory.GetFileSystemEntries(loadFile + "\\" + nameDirectory);
+            try
+            {
+                mas = System.IO.Directory.GetFileSystemEntries(loadFile + "\\" + nameDirectory);
+            }
+            catch
+            {
+                Message.MessageError("Ошибка чтения файлов в неопределенном каталоге");
+            }
 
-            Directory.CreateDirectory(saveFile + "\\" + nameDirectory);
+            try
+            {
+                Directory.CreateDirectory(saveFile + "\\" + nameDirectory);
+            }
+            catch
+            {
+                Message.MessageError("Ошибка переноса неопределенного котолога");
+            }
 
             for (int i = 0; i < mas.Length; i++)
             {
@@ -256,8 +374,15 @@ namespace Task_2
 
         private static void ExtraFile(string loadFile, string saveFile, string nameFile)
         {
-            //Копирование pdf файла из изначальной папки в конечную
-            File.Copy(loadFile + "\\" + nameFile, saveFile + "\\" + nameFile, true);
+            try
+            {
+                //Копирование pdf файла из изначальной папки в конечную
+                File.Copy(loadFile + "\\" + nameFile, saveFile + "\\" + nameFile, true);
+            }
+            catch
+            {
+                Message.MessageError("Ошибка копирования неопределенных файлов");
+            }
         }
     }
 }
